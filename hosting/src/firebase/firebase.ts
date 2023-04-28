@@ -1,30 +1,24 @@
-// Import the functions you need from the SDKs you need
 import { initializeApp, FirebaseError } from "firebase/app";
-import { getAnalytics } from "firebase/analytics";
+import { Analytics, getAnalytics } from "firebase/analytics";
 import * as Auth from "firebase/auth";
 import { Result } from "..";
 import { appendEnv, config } from "../config";
-
-// TODO: Add SDKs for Firebase products that you want to use
-// https://firebase.google.com/docs/web/setup#available-libraries
-
-// Your web app's Firebase configuration
-// For Firebase JS SDK v7.20.0 and later, measurementId is optional
 const firebaseConfig = {
-  apiKey: "AIzaSyBH3lZKDi4rDGftxnkWulAKejkvKz879nw",
-  authDomain: "get-into-form.firebaseapp.com",
-  projectId: "get-into-form",
-  storageBucket: "get-into-form.appspot.com",
-  messagingSenderId: "671261208280",
-  appId: "1:671261208280:web:b34d2b37ba05f7928a31ad",
-  measurementId: "G-NS9VPREQV2",
+  apiKey: config.VITE_API_KEY,
+  authDomain: config.VITE_AUTH_DOMAIN,
+  projectId: config.VITE_PROJECT_ID,
+  storageBucket: config.VITE_STORAGE_BUCKET,
+  messagingSenderId: config.VITE_MESSAGING_SENDER_ID,
+  appId: config.VITE_APP_ID,
 };
 
 export function getFunctionUrl(): string {
-  if (import.meta.env.VITE_ENV === "development") {
-    return `http://127.0.0.1:5001/${
-      firebaseConfig.projectId
-    }/us-central1/${appendEnv("api")}-`;
+  if (config.VITE_ENV === "development") {
+    const { protocol, hostname } = new URL(import.meta.url);
+    const localhost = `${protocol}//${hostname}:5001`;
+    return `${localhost}/${firebaseConfig.projectId}/us-central1/${appendEnv(
+      "api"
+    )}-`;
   }
 
   return `https://us-central1-${
@@ -34,15 +28,21 @@ export function getFunctionUrl(): string {
 
 // Initialize Firebase
 export const fireApp = initializeApp(firebaseConfig);
-const auth = Auth.getAuth();
+const auth = Auth.initializeAuth(fireApp, {
+  persistence: [Auth.browserLocalPersistence, Auth.indexedDBLocalPersistence],
+});
 
 export const firebaseAuth = auth;
 
-if (import.meta.env.VITE_ENV === "development") {
+let fireAnalytics: Analytics;
+if (config.VITE_ENV === "development") {
   Auth.connectAuthEmulator(auth, config.VITE_AUTH_EM_URL);
 }
 
-export const fireAnalytics = getAnalytics(fireApp);
+if (config.VITE_ENV === "production") {
+  fireAnalytics = getAnalytics(fireApp);
+}
+
 export async function emailPasswordSignUp(
   email: string,
   password: string,
@@ -58,12 +58,14 @@ export async function emailPasswordSignUp(
       await Auth.updateProfile(res.user, {
         displayName,
       });
+      await res.user.reload();
     }
 
-    return { ok: res.user };
+    return { ok: true, value: res.user };
   } catch (error: unknown) {
     if (error instanceof FirebaseError) {
       return {
+        ok: false,
         error: {
           code: error.code,
           message: error.message,
@@ -72,7 +74,7 @@ export async function emailPasswordSignUp(
       };
     }
 
-    return { error };
+    return { error, ok: false };
   }
 }
 
@@ -84,10 +86,11 @@ export async function emailPasswordLogin(
     const res = await Auth.signInWithEmailAndPassword(auth, email, password);
 
     return {
-      ok: res.user,
+      ok: true,
+      value: res.user,
     };
   } catch (error) {
-    return { error: error as FirebaseError };
+    return { error: error as FirebaseError, ok: false };
   }
 }
 
@@ -96,9 +99,12 @@ export async function signOut(): Promise<Result<null, FirebaseError>> {
     await Auth.signOut(auth);
 
     return {
-      ok: null,
+      ok: true,
+      value: null,
     };
   } catch (error) {
-    return { error: error as FirebaseError };
+    return { error: error as FirebaseError, ok: false };
   }
 }
+
+export { fireAnalytics };
