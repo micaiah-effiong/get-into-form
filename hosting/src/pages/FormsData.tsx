@@ -5,7 +5,7 @@ import {
   flexRender,
 } from "@tanstack/react-table";
 import { useMemo, useState } from "react";
-import { FormDataType, getFormData } from "../api/forms";
+import { CreatedAtType, FormDataType, getFormData } from "../api/forms";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { MdOutlineFileDownload } from "react-icons/md";
@@ -35,14 +35,12 @@ function FormDataList(prop: {
 
       formDataColHelper.accessor("createdAt", {
         cell: (elt) => {
-          return new Date(
-            (
-              elt.row.original.createdAt as {
-                _seconds: number;
-                _nanoseconds: number;
-              }
-            )._seconds * 1000
-          ).toDateString();
+          const dateData = elt.row.original.createdAt;
+          let date;
+          if (dateData) {
+            date = new Date(dateData._seconds * 1000).toDateString();
+          }
+          return date;
         },
         header: (elt) => {
           console.log();
@@ -60,16 +58,15 @@ function FormDataList(prop: {
 
   const handleFormDataDownload = (format: Exclude<ExportType, "css">) => {
     const data = prop.formData.map((elt) => {
+      const createdAt = elt.createdAt as CreatedAtType;
+      let createdAtData; //
+      if (createdAt) {
+        createdAtData = new Date(createdAt._seconds * 1000).toDateString();
+      }
+
       return {
         ...elt,
-        createdAt: new Date(
-          (
-            elt.createdAt as {
-              _seconds: number;
-              _nanoseconds: number;
-            }
-          )._seconds * 1000
-        ).toDateString(),
+        createdAt: createdAtData,
       };
     });
     const fileName = prop.name || "form-data";
@@ -115,22 +112,46 @@ function FormDataList(prop: {
               </thead>
               <tbody>
                 {table.getRowModel().rows.length ? (
-                  table.getRowModel().rows.map((rowGroup) => (
-                    <tr key={rowGroup.id} className="bg-white border-b">
-                      {rowGroup.getVisibleCells().map((cell) => (
-                        <td
-                          key={cell.id}
-                          scope="row"
-                          className="px-6 py-4 font-medium text-gray-900 whitespace-nowrap"
-                        >
-                          {flexRender(
-                            cell.column.columnDef.cell,
-                            cell.getContext()
-                          )}
-                        </td>
-                      ))}
-                    </tr>
-                  ))
+                  table.getRowModel().rows.map((rowGroup) => {
+                    return (
+                      <tr key={rowGroup.id} className="bg-white border-b">
+                        {rowGroup.getVisibleCells().map((cell, index) => {
+                          {
+                            if (
+                              cell.id !== index + "_createdAt" &&
+                              typeof cell.getValue() === "object"
+                            ) {
+                              const data = cell.getValue() as FormDataType;
+                              return (
+                                <td className="px-6 py-4">
+                                  <details key={cell.id}>
+                                    <summary>Details</summary>
+                                    {flexRender(
+                                      JSON.stringify(data, null, " "),
+                                      cell.getContext()
+                                    )}
+                                  </details>
+                                </td>
+                              );
+                            }
+                          }
+
+                          return (
+                            <td
+                              key={cell.id}
+                              scope="row"
+                              className="px-6 py-4 font-medium text-gray-900 whitespace-nowrap"
+                            >
+                              {flexRender(
+                                cell.column.columnDef.cell,
+                                cell.getContext()
+                              )}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    );
+                  })
                 ) : (
                   <>
                     <tr className="bg-white border-b">

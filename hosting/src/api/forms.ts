@@ -8,6 +8,12 @@ export type CreateFormType = { name: string };
 export type FormDataType = {
   id: string;
   [key: string]: unknown;
+  createdAt?: CreatedAtType;
+};
+
+export type CreatedAtType = {
+  _seconds: number;
+  _nanoseconds: number;
 };
 
 const basePaths = {
